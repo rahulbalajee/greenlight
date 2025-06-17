@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/rahulbalajee/greenlight/internal/data"
+	"github.com/rahulbalajee/greenlight/internal/mailer"
 )
 
 const version = "1.0.0"
@@ -28,12 +29,20 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 type application struct {
 	config config
 	logger *slog.Logger
 	models data.Models
+	mailer *mailer.Mailer
 }
 
 func main() {
@@ -48,6 +57,12 @@ func main() {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter max RPS")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter max burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "31d5fad652688d", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "eb0e1da89c4225", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.rbalajee.net>", "SMTP sender")
+
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -62,10 +77,17 @@ func main() {
 
 	logger.Info("database connection pool established")
 
+	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer,
 	}
 
 	err = app.serve()
