@@ -25,6 +25,8 @@ type User struct {
 	Version   int       `json:"-"`
 }
 
+var AnonymousUser = &User{}
+
 type UserModel struct {
 	DB *sql.DB
 }
@@ -32,6 +34,10 @@ type UserModel struct {
 type password struct {
 	plaintext *string
 	hash      []byte
+}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }
 
 func ValidateEmail(v *validator.Validator, email string) {
